@@ -265,6 +265,36 @@ def test_build_query_keeps_labels_with_other_punctuation():
     )
 
 
+@pytest.mark.parametrize("language", ['Python" OR repo:evil/x', '"'])
+def test_build_query_rejects_a_language_with_a_double_quote(language):
+    with pytest.raises(ValueError, match="double quote"):
+        discover.build_query("good first issue", language=language)
+
+
+@pytest.mark.parametrize("language", ["Jupyter Notebook", "Visual Basic .NET"])
+def test_build_query_rejects_a_multi_word_language(language):
+    with pytest.raises(ValueError, match="whitespace"):
+        discover.build_query("good first issue", language=language)
+
+
+def test_build_query_keeps_a_single_word_language():
+    q = discover.build_query("good first issue", language="Python")
+    assert q == 'is:open is:issue no:assignee label:"good first issue" language:Python'
+
+
+def test_discover_rejects_a_bad_language_before_any_search(monkeypatch, capsys):
+    def no_api_calls(*args, **kwargs):
+        raise AssertionError("a bad language must be rejected before any API call")
+
+    monkeypatch.setattr(checks, "search_issues", no_api_calls)
+    monkeypatch.setattr(checks, "search_issues_page", no_api_calls)
+    monkeypatch.setattr(discover, "discover", no_api_calls)
+    with pytest.raises(SystemExit) as exc:
+        main(["--discover", "--language", "Jupyter Notebook"])
+    assert exc.value.code == 3
+    assert "argument --language:" in capsys.readouterr().err
+
+
 def test_discover_rejects_a_quoted_label_before_any_search(monkeypatch, capsys):
     def no_api_calls(*args, **kwargs):
         raise AssertionError("a bad label must be rejected before any API call")
