@@ -667,12 +667,18 @@ _AI_PATHS = [
 
 
 def _map_ai_policy(repository):
+    # Keep scanning while a file says nothing about AI: an AI ban or
+    # disclosure requirement can live in any of the four locations, so a
+    # policy-free root CONTRIBUTING.md must not hide a later file that bans
+    # AI. Return on the first verdict that is not none-found; source names
+    # the file the verdict came from.
     for alias, path in _AI_PATHS:
         blob = repository.get(alias)
         if not isinstance(blob, dict):
             continue
         verdict, snippet = checks.classify_policy(blob.get("text") or "")
-        return {"verdict": verdict, "snippet": snippet, "source": path}
+        if verdict != "none-found":
+            return {"verdict": verdict, "snippet": snippet, "source": path}
     return {"verdict": "none-found", "snippet": "", "source": None}
 
 
