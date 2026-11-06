@@ -38,6 +38,43 @@ def test_check_ai_policy_reports_ban(monkeypatch):
     assert result["snippet"]
 
 
+def multi_contributing_api(files):
+    """A fake gh_api that serves per-path CONTRIBUTING content."""
+    def fake(endpoint, params=None):
+        for path, text in files.items():
+            if endpoint.endswith("/contents/" + path):
+                return {
+                    "content": base64.b64encode(text.encode()).decode(),
+                    "encoding": "base64",
+                }
+        raise checks.NotFoundError(endpoint)
+
+    return fake
+
+
+def test_check_ai_policy_keeps_scanning_past_policy_free_first_file(monkeypatch):
+    files = {
+        "CONTRIBUTING.md": "Be kind. Write tests.\n",
+        ".github/CONTRIBUTING.md": "We do not accept AI-generated contributions.\n",
+    }
+    monkeypatch.setattr(checks, "gh_api", multi_contributing_api(files))
+    result = checks.check_ai_policy("octo", "repo")
+    assert result["verdict"] == "ban"
+    assert result["source"] == ".github/CONTRIBUTING.md"
+    assert result["snippet"]
+
+
+def test_check_ai_policy_none_found_across_all_files(monkeypatch):
+    files = {
+        "CONTRIBUTING.md": "Be kind. Write tests.\n",
+        ".github/CONTRIBUTING.md": "Thanks for contributing.\n",
+    }
+    monkeypatch.setattr(checks, "gh_api", multi_contributing_api(files))
+    result = checks.check_ai_policy("octo", "repo")
+    assert result["verdict"] == "none-found"
+    assert result["source"] is None
+
+
 def test_disclosure_language_detected():
     text = "All AI-assisted changes must include an Assisted-by trailer.\n"
     verdict, _ = checks.classify_policy(text)

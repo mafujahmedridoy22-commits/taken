@@ -425,6 +425,46 @@ def test_findings_shape_matches_rest_contract(monkeypatch):
     assert findings["repo_health"]["contributors"] == 2  # dev + anon@x
 
 
+def test_map_ai_policy_keeps_scanning_past_policy_free_first_file():
+    repo = {
+        "ai1": {"text": "Be kind. Write tests."},
+        "ai2": {"text": "We do not accept AI-generated contributions."},
+        "ai3": None,
+        "ai4": None,
+    }
+    result = graphql._map_ai_policy(repo)
+    assert result["verdict"] == "ban"
+    assert result["source"] == ".github/CONTRIBUTING.md"
+
+
+def test_map_ai_policy_first_policy_in_search_order_wins():
+    repo = {
+        "ai1": {"text": "We will not accept AI-generated code."},
+        "ai2": {"text": "All AI-assisted changes must disclose."},
+        "ai3": None,
+        "ai4": None,
+    }
+    result = graphql._map_ai_policy(repo)
+    assert result["verdict"] == "ban"
+    assert result["source"] == "CONTRIBUTING.md"
+
+
+def test_map_ai_policy_none_found_across_all_files():
+    repo = {"ai1": {"text": "Be kind."}, "ai2": {"text": "Thanks."}, "ai3": None, "ai4": None}
+    result = graphql._map_ai_policy(repo)
+    assert result["verdict"] == "none-found"
+    assert result["source"] is None
+
+
+def test_run_checks_graphql_scans_past_policy_free_first_file(monkeypatch):
+    repo = _repo_node()
+    repo["ai1"] = {"text": "Be kind. Write tests."}
+    repo["ai2"] = {"text": "We do not accept AI-generated contributions."}
+    findings = _run_with_fake_transport(monkeypatch, _payload(repo))
+    assert findings["ai_policy"]["verdict"] == "ban"
+    assert findings["ai_policy"]["source"] == ".github/CONTRIBUTING.md"
+
+
 def test_verdict_matches_rest_findings(monkeypatch):
     findings = _run_with_fake_transport(monkeypatch, _payload())
     rest_findings = {
