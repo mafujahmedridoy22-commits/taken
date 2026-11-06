@@ -29,6 +29,7 @@ API_TIMEOUT = 60
 HEALTH_WINDOW_DAYS = 30
 CONTRIBUTORS_WINDOW_DAYS = 90
 CACHE_TTL_SECONDS = 3600
+IDENTITY_TTL_SECONDS = 300
 
 # Stale-claim decay thresholds (issue #83). PR_IDLE_DAYS is the number of
 # days an open linked PR may sit without activity before its TAKEN signal
@@ -569,18 +570,24 @@ def _cache_key(endpoint, params):
 
 _IDENTITY = None
 _IDENTITY_FETCHED = False
+_IDENTITY_FETCHED_AT = None
 
 
 def _github_identity():
     """Return the authenticated `gh` login (lowercased), memoized per process.
 
-    Cache entries are namespaced by identity so that switching identities
-    (`gh auth switch`, or a shared TAKEN_CACHE_DIR on a shared machine)
-    cannot serve one identity's cached data to another. Returns None when
-    the identity cannot be determined; callers fail closed in that case.
+    The memoized value is TTL-bounded (IDENTITY_TTL_SECONDS) so a long-lived
+    process (e.g. the MCP server) re-resolves the identity after `gh auth
+    switch` instead of serving a stale login forever. Cache entries are
+    namespaced by identity so that switching identities cannot serve one
+    identity's cached data to another. Returns None when the identity cannot
+    be determined; callers fail closed in that case.
     """
-    global _IDENTITY, _IDENTITY_FETCHED
-    if _IDENTITY_FETCHED:
+    global _IDENTITY, _IDENTITY_FETCHED, _IDENTITY_FETCHED_AT
+    if _IDENTITY_FETCHED and (
+        _IDENTITY_FETCHED_AT is None
+        or time.monotonic() - _IDENTITY_FETCHED_AT < IDENTITY_TTL_SECONDS
+    ):
         return _IDENTITY
     _IDENTITY_FETCHED = True
     try:
@@ -592,8 +599,10 @@ def _github_identity():
         )
         login = (proc.stdout or "").strip().lower()
         _IDENTITY = login if proc.returncode == 0 and login else None
+        _IDENTITY_FETCHED_AT = time.monotonic()
     except Exception:
         _IDENTITY = None
+        _IDENTITY_FETCHED_AT = None
     return _IDENTITY
 
 

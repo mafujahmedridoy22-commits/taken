@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import time
 
 import pytest
 
@@ -447,6 +448,30 @@ def test_identity_lookup_memoized(monkeypatch, tmp_path):
     checks.gh_api("repos/octo/repo")
     identity_calls = [c for c in calls if c[:3] == ["gh", "api", "user"]]
     assert len(identity_calls) == 1
+
+
+def test_identity_re_resolves_after_ttl(monkeypatch, tmp_path):
+    """A stale memoized identity is re-resolved after IDENTITY_TTL_SECONDS."""
+    monkeypatch.setenv("TAKEN_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(checks, "_IDENTITY", "old-login")
+    monkeypatch.setattr(checks, "_IDENTITY_FETCHED", True)
+    monkeypatch.setattr(
+        checks,
+        "_IDENTITY_FETCHED_AT",
+        time.monotonic() - checks.IDENTITY_TTL_SECONDS - 1,
+    )
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        assert cmd[:3] == ["gh", "api", "user"]
+        return Proc("new-login\n")
+
+    monkeypatch.setattr(checks.subprocess, "run", fake_run)
+
+    assert checks._github_identity() == "new-login"
+    assert len(calls) == 1  # expired TTL triggered exactly one re-resolution
 
 
 def _raise_oserror(path):
