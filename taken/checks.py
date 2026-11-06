@@ -1730,7 +1730,14 @@ def classify_policy(text):
 
 
 def check_ai_policy(owner, repo):
-    """Look for an AI contribution policy in CONTRIBUTING files."""
+    """Look for an AI contribution policy in CONTRIBUTING files.
+
+    Keeps scanning while a file says nothing about AI: an AI ban or
+    disclosure requirement can live in any of the four locations, so a
+    policy-free root CONTRIBUTING.md must not hide a later file that bans
+    AI. Returns on the first verdict that is not none-found; source names
+    the file the verdict came from.
+    """
     for path in CONTRIBUTING_PATHS:
         endpoint = f"repos/{owner}/{repo}/contents/{path}"
         try:
@@ -1745,7 +1752,8 @@ def check_ai_policy(owner, repo):
             raise TakenError(f"could not decode {path}: {exc}") from exc
         text = raw.decode("utf-8", errors="replace")
         verdict, snippet = classify_policy(text)
-        return {"verdict": verdict, "snippet": snippet, "source": path}
+        if verdict != "none-found":
+            return {"verdict": verdict, "snippet": snippet, "source": path}
     return {"verdict": "none-found", "snippet": "", "source": None}
 
 
