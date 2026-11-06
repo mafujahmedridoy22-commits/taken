@@ -108,6 +108,26 @@ def check_label(label):
         )
 
 
+def check_language(language):
+    """Raise ValueError if `language` cannot be used as a raw search term.
+
+    The `language:` qualifier takes a single unquoted value, so a
+    multi-word name like "Jupyter Notebook" would be read as two separate
+    terms, and a double quote can break out of the qualifier entirely (the
+    same way labels could before #334). Reject both rather than silently
+    searching for something else.
+    """
+    if '"' in language:
+        raise ValueError(
+            f"language {language!r} contains a double quote, which a search query can't hold"
+        )
+    if any(char.isspace() for char in language):
+        raise ValueError(
+            f"language {language!r} contains whitespace and can't be one search term; "
+            "use a single-word language name (e.g. Python)"
+        )
+
+
 def build_query(labels, language=None, updated_after=None):
     """Build a search/issues query matching any of the given labels.
 
@@ -117,13 +137,16 @@ def build_query(labels, language=None, updated_after=None):
     rate limits throttle burst velocity, not budget, and the old per-label
     loop died 12.5s into a cold run with zero verdicts).
 
-    Raises ValueError for a label check_label() refuses, rather than
-    sending a query that searches for something else.
+    Raises ValueError for a label check_label() refuses, or a language
+    check_language() refuses, rather than sending a query that searches
+    for something else.
     """
     if isinstance(labels, str):
         labels = [labels]
     for lab in labels:
         check_label(lab)
+    if language:
+        check_language(language)
     label_part = ",".join(f'"{lab}"' for lab in labels)
     parts = ["is:open", "is:issue", "no:assignee", f"label:{label_part}"]
     if updated_after:
