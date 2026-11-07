@@ -257,6 +257,12 @@ def test_build_query_rejects_a_label_with_a_double_quote(label):
         discover.build_query(["good first issue", label])
 
 
+@pytest.mark.parametrize("language", ['python" OR repo:x', "\\", 'say "hi"' ])
+def test_build_query_rejects_a_language_with_a_double_quote(language):
+    with pytest.raises(ValueError, match="search query can't hold"):
+        discover.build_query("good first issue", language=language)
+
+
 def test_build_query_keeps_labels_with_other_punctuation():
     q = discover.build_query(["good first issue :seedling:", "status: help-wanted", "it's easy"])
     assert q == (

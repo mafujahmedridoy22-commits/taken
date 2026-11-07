@@ -129,6 +129,10 @@ def build_query(labels, language=None, updated_after=None):
     if updated_after:
         parts.append(f"updated:>={updated_after}")
     if language:
+        if '"' in language or "\\" in language:
+            raise ValueError(
+                f"language {language!r} contains characters a search query can't hold"
+            )
         parts.append(f"language:{language}")
     return " ".join(parts)
 
