@@ -686,3 +686,29 @@ def test_payload_closed_state_verdicts_taken_without_get(monkeypatch):
     verdict, reasons = decide(findings)
     assert verdict == TAKEN
     assert any("closed" in reason for reason in reasons)
+
+
+def test_build_query_quotes_a_multi_word_language():
+    q = discover.build_query("good first issue", language="Jupyter Notebook")
+    assert q == 'is:open is:issue no:assignee label:"good first issue" language:"Jupyter Notebook"'
+    q2 = discover.build_query("good first issue", language="python")
+    assert q2 == 'is:open is:issue no:assignee label:"good first issue" language:python'
+
+
+@pytest.mark.parametrize("lang", ['Python" OR repo:evil/x', '"', 'say "hi"'])
+def test_build_query_rejects_a_language_with_a_double_quote(lang):
+    with pytest.raises(ValueError, match="double quote"):
+        discover.build_query("good first issue", language=lang)
+
+
+def test_cli_rejects_a_quoted_language_before_any_search(monkeypatch, capsys):
+    def no_api_calls(*args, **kwargs):
+        raise AssertionError("a bad language must be rejected before any API call")
+
+    monkeypatch.setattr(checks, "search_issues", no_api_calls)
+    monkeypatch.setattr(checks, "search_issues_page", no_api_calls)
+    monkeypatch.setattr(discover, "discover", no_api_calls)
+    with pytest.raises(SystemExit) as exc:
+        main(["--discover", "--language", 'Python" OR repo:evil/x'])
+    assert exc.value.code == 3
+    assert "argument --language:" in capsys.readouterr().err
