@@ -192,3 +192,17 @@ for (const [name, shimPath] of Object.entries(SHIMS)) {
     });
   });
 }
+
+describe("shim header comments", () => {
+  it("names its own binary in the header comment", () => {
+    for (const [name, shimPath] of Object.entries(SHIMS)) {
+      const source = fs.readFileSync(shimPath, "utf8");
+      const firstLine = source.split("\n").find((l) => l.trim().startsWith("//"));
+      assert.ok(firstLine, `${name} shim should have a header comment`);
+      assert.ok(
+        firstLine.includes(`\`${name}\``),
+        `${name} shim header comment should name its own binary`
+      );
+    }
+  });
+});
