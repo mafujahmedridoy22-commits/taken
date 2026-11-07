@@ -1731,6 +1731,7 @@ def classify_policy(text):
 
 def check_ai_policy(owner, repo):
     """Look for an AI contribution policy in CONTRIBUTING files."""
+    last_found = None
     for path in CONTRIBUTING_PATHS:
         endpoint = f"repos/{owner}/{repo}/contents/{path}"
         try:
@@ -1745,8 +1746,13 @@ def check_ai_policy(owner, repo):
             raise TakenError(f"could not decode {path}: {exc}") from exc
         text = raw.decode("utf-8", errors="replace")
         verdict, snippet = classify_policy(text)
-        return {"verdict": verdict, "snippet": snippet, "source": path}
-    return {"verdict": "none-found", "snippet": "", "source": None}
+        if last_found is None:
+            last_found = path
+        # A file that exists but contains no AI policy is not a verdict: keep
+        # scanning later CONTRIBUTING paths so a real policy elsewhere wins.
+        if verdict != "none-found":
+            return {"verdict": verdict, "snippet": snippet, "source": path}
+    return {"verdict": "none-found", "snippet": "", "source": last_found}
 
 
 class IssueListing(list):

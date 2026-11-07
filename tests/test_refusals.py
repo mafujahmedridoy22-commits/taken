@@ -29,7 +29,21 @@ def test_ban_language_detected():
     assert "do not accept ai" in snippet.lower()
 
 
-def test_check_ai_policy_reports_ban(monkeypatch):
+
+
+def test_check_ai_policy_keeps_scanning_when_first_file_has_no_policy(monkeypatch):
+    """A CONTRIBUTING file with no AI policy is not a verdict: a later file with a real policy wins."""
+    import base64
+    def fake_gh(endpoint):
+        if endpoint.endswith("/contents/CONTRIBUTING"):
+            return {"content": base64.b64encode(b"Please just open a PR.").decode()}
+        if endpoint.endswith("/contents/.github/CONTRIBUTING.md"):
+            return {"content": base64.b64encode(b"We do not accept AI-generated contributions.").decode()}
+        raise checks.NotFoundError()
+    monkeypatch.setattr(checks, "gh_api", fake_gh)
+    result = checks.check_ai_policy("octo", "repo")
+    assert result["verdict"] == "ban"
+    assert result["source"] == ".github/CONTRIBUTING.md"
     text = "Please read this first: we do not accept AI-generated contributions.\n"
     monkeypatch.setattr(checks, "gh_api", contributing_api(text))
     result = checks.check_ai_policy("octo", "repo")
