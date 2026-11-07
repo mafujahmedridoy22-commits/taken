@@ -221,7 +221,7 @@ def _quiet_entry(number, title, url, claimant, key, events, reply, now, wait_day
 def _scan_issue_claims(item, events, options, me, now):
     """(waiting, quiet) claim entries for one open issue.
 
-    A claim with no maintainer reply older than claim_wait_days is
+    A claim with no maintainer reply aged at least claim_wait_days is
     waiting on the maintainer. A claim where a maintainer replied and the
     claimant has said nothing since (for at least claim_wait_days) has
     gone quiet the other way. A maintainer claiming an issue is
